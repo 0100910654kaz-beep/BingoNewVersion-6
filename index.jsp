@@ -73,8 +73,6 @@
         input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
         .btn { display: block; width: 100%; background: #2a9d8f; color: white; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; text-decoration: none; box-sizing: border-box; text-align: center; }
         .btn:hover { background: #21867a; }
-        .btn-admin { background: #457b9d; margin-top: 10px; }
-        .btn-admin:hover { background: #1d3557; }
         .status-panel { background: #eef2f3; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; font-weight: bold; color: #2c3e50; }
         .bingo-table { width: 100%; border-collapse: separate; border-spacing: 6px; margin: 15px 0; table-layout: fixed; }
         .bingo-cell { background: #fff; border: 2px solid #bdc3c7; border-radius: 8px; font-size: 18px; font-weight: bold; height: 55px; text-align: center; color: #2c3e50; box-shadow: inset 0 -3px 0 #bdc3c7; transition: all 0.2s ease; word-wrap: break-word; }
@@ -85,8 +83,6 @@
         .history-cell { background: #e9ecef; color: #495057; font-weight: bold; padding: 6px 10px; border-radius: 20px; font-size: 13px; min-width: 24px; text-align: center; }
         .history-cell.newest { animation: pulse 1s infinite alternate; font-weight: 900; }
         @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.15); } }
-        .admin-box { margin-top: 30px; padding-top: 20px; border-top: 2px dashed #ccc; }
-        .admin-title { font-size: 14px; color: #7f8c8d; margin-bottom: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -105,15 +101,12 @@
             </div>
             <button type="submit" class="btn">ゲームに参加する</button>
         </form>
-
-        <div class="admin-box">
-            <div class="admin-title">【司会者専用管理メニュー】</div>
-            <form action="BingoServlet" method="post">
-                <input type="hidden" name="action" value="createRoom">
-                <button type="submit" class="btn btn-admin">新規に部屋を作成する</button>
-            </form>
-        </div>
-
+        
+        <br>
+        <form action="BingoServlet" method="post">
+            <input type="hidden" name="action" value="createRoom">
+            <button type="submit" class="btn" style="background: #457b9d;">新規に部屋を作成する</button>
+        </form>
     <% } else { %>
         <h1>🎰 ビンゴカード</h1>
         <div class="status-panel">
