@@ -40,15 +40,19 @@
         li { margin-bottom: 8px; font-size: 15px; }
     </style>
     <script>
+        // 5秒ごとに自動リロードするタイマー
         setInterval(function() {
             var daysInput = document.getElementById("validDaysInput");
             if (daysInput) {
+                // 🛡️ まだ部屋を作成していない画面（新規作成画面）の時は、
+                // 自動リロードで他人のセッションを呼び出さないよう、タイマーの自動遷移を完全に停止します。
                 return;
             }
 
+            // 部屋番号がすでに確定している場合のみ、その部屋専用のURLで安全に自動リロードします。
             var currentGameId = "<%= gameId %>";
             if (currentGameId && currentGameId !== "") {
-                window.location.href = "BingoServlet?action=adminView&gameId=" + currentGameId;
+                window.location.href = "BingoServlet?userType=admin&gameId=" + currentGameId;
             }
         }, 5000);
     </script>
@@ -68,10 +72,11 @@
     <% if (game == null || gameId.isEmpty()) { %>
         <div class="panel" style="text-align: center; margin-bottom: 20px; background: #fff5f5;">
             <p style="font-weight: bold; color: #c92a2a; margin-top: 0;">ビンゴゲームの部屋がまだ作成されていません。</p>
-            <form action="BingoServlet" method="post">
-                <input type="hidden" name="action" value="createRoom">
+            <form action="BingoServlet" method="get">
+                <input type="hidden" name="userType" value="admin">
+                <input type="hidden" name="action" value="create">
                 <label style="font-weight: bold;">部屋の有効日数: </label>
-                <input type="number" id="validDaysInput" name="validDays" value="1" style="width:60px; padding:5px; text-align:center; font-size:16px;" min="1" required> 日間
+                <input type="number" id="validDaysInput" name="validDays" value="8" style="width:60px; padding:5px; text-align:center; font-size:16px;" min="1" required> 日間
                 <br><br>
                 <button type="submit" class="btn btn-draw" style="background:#228be6;">新規に部屋を作成する</button>
             </form>
@@ -80,15 +85,15 @@
 
     <% if (game != null && !gameId.isEmpty()) { %>
         <div style="margin-bottom: 25px;">
-            <form action="BingoServlet" method="post" style="display:inline;">
+            <form action="BingoServlet" method="get" style="display:inline;">
+                <input type="hidden" name="userType" value="admin">
                 <input type="hidden" name="action" value="draw">
-                <input type="hidden" name="gameId" value="<%= gameId %>">
                 <button type="submit" class="btn btn-draw">🔮 玉を1個引く</button>
             </form>
 
-            <form action="BingoServlet" method="post" style="display:inline;" onsubmit="return confirm('本当にゲームをリセットしますか？出た数字や全員のカードが初期化されます。');">
+            <form action="BingoServlet" method="get" style="display:inline;" onsubmit="return confirm('本当にゲームをリセットしますか？出た数字や全員のカードが初期化されます。');">
+                <input type="hidden" name="userType" value="admin">
                 <input type="hidden" name="action" value="reset">
-                <input type="hidden" name="gameId" value="<%= gameId %>">
                 <button type="submit" class="btn btn-reset">🔄 ゲームをリセット</button>
             </form>
         </div>
