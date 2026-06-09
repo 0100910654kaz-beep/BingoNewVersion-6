@@ -16,7 +16,7 @@ import jakarta.servlet.http.HttpSession;
 public class BingoServlet extends HttpServlet {
     private static final long serialVersionUID = 1L;
 
-    // 全部屋のゲームデータを一元管理する共通メモリ空間
+    // 全部屋のゲームデータを一元管理するスレッドセーフな共通メモリ空間
     private static final ConcurrentHashMap<String, BingoGame> games = new ConcurrentHashMap<>();
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) 
@@ -39,12 +39,14 @@ public class BingoServlet extends HttpServlet {
         String action = request.getParameter("action");
 
         // =================================================================
-        // 👑 1. 司会者専用処理ブロック（プレイヤー用チェックに割り込まれないよう最優先処理）
+        // 👑 1. 司会者専用処理ブロック（最優先で実行し、プレイヤー処理から完全隔離）
         // =================================================================
         
         // 【新規部屋作成】
         if ("createRoom".equals(action)) {
-            String newGameId;
+            String newGameId = null;
+            BingoGame newGame = null;
+            
             synchronized (games) {
                 do {
                     // 0000〜9999の4桁の部屋IDをランダム自動生成
@@ -52,20 +54,27 @@ public class BingoServlet extends HttpServlet {
                 } while (games.containsKey(newGameId)); // 重複があれば再生成
                 
                 // 有効期限1日の部屋オブジェクトを生成して共通マップに登録
-                BingoGame newGame = new BingoGame(newGameId, 1);
+                newGame = new BingoGame(newGameId, 1);
                 games.put(newGameId, newGame);
             }
-            // セッションに司会者自身の現在のゲームIDを記憶させておく
-            session.setAttribute("myCurrentGameId", newGameId);
             
-            request.setAttribute("game", games.get(newGameId));
+            // 確実にインスタンスが作成された状態を確保してセット
+            session.setAttribute("myCurrentGameId", newGameId);
+            request.setAttribute("game", newGame);
+            request.setAttribute("gameId", newGameId);
+            
+            // admin.jspへ遷移
             request.getRequestDispatcher("admin.jsp").forward(request, response);
-            return; // 確実にここで処理を終了させ、下のプレイヤーチェックへ落とさない
+            return; 
         }
 
         // 【司会者：数字の抽選】
         if ("draw".equals(action)) {
             String adminGameId = request.getParameter("gameId");
+            if (adminGameId == null || adminGameId.isEmpty()) {
+                adminGameId = (String) session.getAttribute("myCurrentGameId");
+            }
+            
             BingoGame adminGame = games.get(adminGameId);
             if (adminGame != null) {
                 List<Integer> drawn = adminGame.getDrawnNumbers();
@@ -76,7 +85,7 @@ public class BingoServlet extends HttpServlet {
                     } while (drawn.contains(nextNum));
                     drawn.add(nextNum);
                     
-                    // 数字を引いたタイミングで、全プレイヤーのリーチ・ビンゴ状態を裏で自動更新
+                    // 数字を引いたタイミングで、全ユーザーのリーチ・ビンゴ状態を全自動裏更新
                     for (String pName : adminGame.getAllPlayers()) {
                         List<List<String>> pCard = adminGame.getPlayerCard(pName);
                         if (pCard != null && !pCard.isEmpty()) {
@@ -85,6 +94,7 @@ public class BingoServlet extends HttpServlet {
                     }
                 }
                 request.setAttribute("game", adminGame);
+                request.setAttribute("gameId", adminGameId);
             }
             request.getRequestDispatcher("admin.jsp").forward(request, response);
             return;
@@ -93,21 +103,31 @@ public class BingoServlet extends HttpServlet {
         // 【司会者：ゲームリセット】
         if ("reset".equals(action)) {
             String adminGameId = request.getParameter("gameId");
+            if (adminGameId == null || adminGameId.isEmpty()) {
+                adminGameId = (String) session.getAttribute("myCurrentGameId");
+            }
+            
             BingoGame adminGame = games.get(adminGameId);
             if (adminGame != null) {
                 adminGame.resetGame();
                 request.setAttribute("game", adminGame);
+                request.setAttribute("gameId", adminGameId);
             }
             request.getRequestDispatcher("admin.jsp").forward(request, response);
             return;
         }
 
-        // 【司会者：管理画面の再表示・リフレッシュ】
+        // 【司会者：管理画面の再表示・手動リフレッシュ】
         if ("adminView".equals(action)) {
             String adminGameId = request.getParameter("gameId");
+            if (adminGameId == null || adminGameId.isEmpty()) {
+                adminGameId = (String) session.getAttribute("myCurrentGameId");
+            }
+            
             BingoGame adminGame = games.get(adminGameId);
             if (adminGame != null) {
                 request.setAttribute("game", adminGame);
+                request.setAttribute("gameId", adminGameId);
             }
             request.getRequestDispatcher("admin.jsp").forward(request, response);
             return;
