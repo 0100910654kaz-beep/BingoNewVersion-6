@@ -36,210 +36,56 @@ public class BingoGame implements Serializable {
         this.expireTime = cal.getTime();
     }
 
-    public synchronized List<List<String>> getPlayerCard(String name) {
-        if (name == null) return null;
+    public synchronized int getAnonymousCount() {
+        return anonymousCount;
+    }
+
+    // ⚡【新機能】重複なしで「プレイヤー1」「プレイヤー2」を全自動で安全に割り振る
+    public synchronized String generateNextPlayerName() {
+        this.anonymousCount++;
+        return "プレイヤー" + this.anonymousCount;
+    }
+
+    public List<List<String>> getPlayerCard(String name) {
         return playerCards.get(name);
     }
 
-    public synchronized void setPlayerCard(String name, List<List<String>> card) {
-        if (name == null || card == null) return;
+    public void setPlayerCard(String name, List<List<String>> card) {
         playerCards.put(name, card);
         if (!allPlayers.contains(name)) {
             allPlayers.add(name);
         }
     }
 
-    public synchronized void drawNumber() {
-        if (drawnNumbers.size() >= 75) return;
-        
-        int nextNum;
-        do {
-            nextNum = (int)(Math.random() * 75) + 1;
-        } while (drawnNumbers.contains(nextNum));
-        
-        drawnNumbers.add(nextNum);
-
-        // 新しい数字が出たので、全登録プレイヤーの状態を一斉に再計算
-        List<PlayerResult> currentBingo = new ArrayList<>();
-        List<PlayerResult> currentReach = new ArrayList<>();
-        ConcurrentHashMap<String, List<String>> newWaitNumbers = new ConcurrentHashMap<>();
-
-        for (String pName : allPlayers) {
-            List<List<String>> card = playerCards.get(pName);
-            if (card == null) continue;
-
-            boolean[][] hits = new boolean[5][5];
-            for (int r = 0; r < 5; r++) {
-                for (int c = 0; c < 5; c++) {
-                    String numStr = card.get(r).get(c);
-                    int num = Integer.parseInt(numStr);
-                    if (num == 0 || drawnNumbers.contains(num)) {
-                        hits[r][c] = true;
-                    }
-                }
-            }
-
-            int bingoLines = 0;
-            List<String> waitNumsForThisPlayer = new ArrayList<>();
-
-            // 横のチェック
-            for (int r = 0; r < 5; r++) {
-                int missingCount = 0;
-                String lastMissingNum = "";
-                for (int c = 0; c < 5; c++) {
-                    if (!hits[r][c]) {
-                        missingCount++;
-                        lastMissingNum = card.get(r).get(c);
-                    }
-                }
-                if (missingCount == 0) bingoLines++;
-                if (missingCount == 1) {
-                    if (!waitNumsForThisPlayer.contains(lastMissingNum)) waitNumsForThisPlayer.add(lastMissingNum);
-                }
-            }
-
-            // 縦のチェック
-            for (int c = 0; c < 5; c++) {
-                int missingCount = 0;
-                String lastMissingNum = "";
-                for (int r = 0; r < 5; r++) {
-                    if (!hits[r][c]) {
-                        missingCount++;
-                        lastMissingNum = card.get(r).get(c);
-                    }
-                }
-                if (missingCount == 0) bingoLines++;
-                if (missingCount == 1) {
-                    if (!waitNumsForThisPlayer.contains(lastMissingNum)) waitNumsForThisPlayer.add(lastMissingNum);
-                }
-            }
-
-            // 斜め（左上から右下）
-            {
-                int missingCount = 0;
-                String lastMissingNum = "";
-                for (int i = 0; i < 5; i++) {
-                    if (!hits[i][i]) {
-                        missingCount++;
-                        lastMissingNum = card.get(i).get(i);
-                    }
-                }
-                if (missingCount == 0) bingoLines++;
-                if (missingCount == 1) {
-                    if (!waitNumsForThisPlayer.contains(lastMissingNum)) waitNumsForThisPlayer.add(lastMissingNum);
-                }
-            }
-
-            // 斜め（右上から左下）👉【★ここを完璧に修正しました】
-            {
-                int missingCount = 0;
-                String lastMissingNum = "";
-                for (int i = 0; i < 5; i++) {
-                    if (!hits[i][4 - i]) {
-                        missingCount++;
-                        lastMissingNum = card.get(i).get(4 - i);
-                    }
-                }
-                if (missingCount == 0) bingoLines++;
-                if (missingCount == 1) {
-                    if (!waitNumsForThisPlayer.contains(lastMissingNum)) waitNumsForThisPlayer.add(lastMissingNum);
-                }
-            }
-
-            if (bingoLines > 0) {
-                currentBingo.add(new PlayerResult(pName, new Date(), nextNum));
-            } else if (!waitNumsForThisPlayer.isEmpty()) {
-                currentReach.add(new PlayerResult(pName, new Date(), nextNum));
-                newWaitNumbers.put(pName, waitNumsForThisPlayer);
+    public synchronized void registerBingo(String name, int lastNum) {
+        boolean alreadyBingo = false;
+        for (PlayerResult p : bingoPlayers) {
+            if (p.getPlayerName().equals(name)) {
+                alreadyBingo = true;
+                break;
             }
         }
-
-        for (PlayerResult newB : currentBingo) {
-            boolean alreadyBingo = false;
-            for (PlayerResult oldB : bingoPlayers) {
-                if (oldB.getPlayerName().equals(newB.getPlayerName())) { alreadyBingo = true; break; }
-            }
-            if (!alreadyBingo) {
-                bingoPlayers.add(0, newB);
-                lastBingoTime = new Date();
-            }
+        if (!alreadyBingo) {
+            bingoPlayers.add(0, new PlayerResult(name, new Date(), lastNum));
+            lastBingoTime = new Date();
         }
-
-        reachPlayers.clear();
-        for (PlayerResult newR : currentReach) {
-            boolean inBingo = false;
-            for (PlayerResult b : bingoPlayers) {
-                if (b.getPlayerName().equals(newR.getPlayerName())) { inBingo = true; break; }
-            }
-            if (!inBingo) {
-                reachPlayers.add(newR);
-            }
-        }
-
-        playerWaitNumbers.clear();
-        playerWaitNumbers.putAll(newWaitNumbers);
     }
 
-    public synchronized void checkPlayerStatus(String name, List<List<String>> card) {
-        if (name == null || card == null) return;
+    public synchronized void removeBingo(String name) {
+        bingoPlayers.removeIf(p -> p.getPlayerName().equals(name));
+    }
 
-        boolean[][] hits = new boolean[5][5];
-        for (int r = 0; r < 5; r++) {
-            for (int c = 0; c < 5; c++) {
-                String numStr = card.get(r).get(c);
-                int num = Integer.parseInt(numStr);
-                if (num == 0 || drawnNumbers.contains(num)) {
-                    hits[r][c] = true;
+    public synchronized void updateReachStatus(String name, boolean isReach, List<String> waitNums) {
+        if (isReach) {
+            playerWaitNumbers.put(name, waitNums);
+            boolean alreadyReach = false;
+            for (PlayerResult p : reachPlayers) {
+                if (p.getPlayerName().equals(name)) {
+                    alreadyReach = true;
+                    break;
                 }
             }
-        }
-
-        int bingoLines = 0;
-        List<String> waitNums = new ArrayList<>();
-
-        for (int r = 0; r < 5; r++) {
-            int miss = 0; String lastNum = "";
-            for (int c = 0; c < 5; c++) { if (!hits[r][c]) { miss++; lastNum = card.get(r).get(c); } }
-            if (miss == 0) bingoLines++;
-            if (miss == 1 && !waitNums.contains(lastNum)) waitNums.add(lastNum);
-        }
-        for (int c = 0; c < 5; c++) {
-            int miss = 0; String lastNum = "";
-            for (int r = 0; r < 5; r++) { if (!hits[r][c]) { miss++; lastNum = card.get(r).get(c); } }
-            if (miss == 0) bingoLines++;
-            if (miss == 1 && !waitNums.contains(lastNum)) waitNums.add(lastNum);
-        }
-        {
-            int miss = 0; String lastNum = "";
-            for (int i = 0; i < 5; i++) { if (!hits[i][i]) { miss++; lastNum = card.get(i).get(i); } }
-            if (miss == 0) bingoLines++;
-            if (miss == 1 && !waitNums.contains(lastNum)) waitNums.add(lastNum);
-        }
-        {
-            int miss = 0; String lastNum = "";
-            for (int i = 0; i < 5; i++) { if (!hits[i][4-i]) { miss++; lastNum = card.get(i).get(4-i); } }
-            if (miss == 0) bingoLines++;
-            if (miss == 1 && !waitNums.contains(lastNum)) waitNums.add(lastNum);
-        }
-
-        if (bingoLines > 0) {
-            boolean already = false;
-            for (PlayerResult b : bingoPlayers) { if (b.getPlayerName().equals(name)) { already = true; break; } }
-            if (!already) {
-                int lastNum = drawnNumbers.isEmpty() ? 0 : drawnNumbers.get(drawnNumbers.size() - 1);
-                bingoPlayers.add(0, new PlayerResult(name, new Date(), lastNum));
-                lastBingoTime = new Date();
-            }
-            reachPlayers.removeIf(p -> p.getPlayerName().equals(name));
-            playerWaitNumbers.remove(name);
-        } else if (!waitNums.isEmpty()) {
-            playerWaitNumbers.put(name, waitNums);
-            boolean already = false;
-            for (PlayerResult r : reachPlayers) { if (r.getPlayerName().equals(name)) { already = true; break; } }
-            boolean inBingo = false;
-            for (PlayerResult b : bingoPlayers) { if (b.getPlayerName().equals(name)) { inBingo = true; break; } }
-            
-            if (!already && !inBingo) {
+            if (!alreadyReach) {
                 int lastNum = drawnNumbers.isEmpty() ? 0 : drawnNumbers.get(drawnNumbers.size() - 1);
                 reachPlayers.add(new PlayerResult(name, new Date(), lastNum));
             }
@@ -273,10 +119,176 @@ public class BingoGame implements Serializable {
         return timePassed > twoHoursInMilliseconds;
     }
 
-    public String getGameId() { return gameId; }
-    public List<Integer> getDrawnNumbers() { return drawnNumbers; }
-    public List<PlayerResult> getBingoPlayers() { return bingoPlayers; }
-    public List<PlayerResult> getReachPlayers() { return reachPlayers; }
-    public int getPlayerCount() { return playerCards.size(); }
-    public List<String> getAllPlayers() { return allPlayers; }
+    public String getGameId() { return gameId; }\n    public List<Integer> getDrawnNumbers() { return drawnNumbers; }\n    public List<PlayerResult> getBingoPlayers() { return bingoPlayers; }\n    public List<PlayerResult> getReachPlayers() { return reachPlayers; }\n    public int getPlayerCount() { return playerCards.size(); }\n    public List<String> getAllPlayers() { return allPlayers; }\n}\n```
+
+---
+
+### 🛠️ 2. `BingoServlet.java`（全書き換え用・完全版）
+プレイヤー画面から送られてくる名前入力パラメータを完全に撤廃し、参加（join）時にサーバー側で名前を自動確定させ、セッションと共通メモリ空間へカチッと同期保存するロジックに書き換えています。
+
+```java
+package servlet;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+
+@WebServlet("/BingoServlet")
+public class BingoServlet extends HttpServlet {
+    private static final long serialVersionUID = 1L;
+
+    private static final ConcurrentHashMap<String, BingoGame> games = new ConcurrentHashMap<>();
+
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) 
+            throws ServletException, IOException {
+        processRequest(request, response);
+    }
+
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) 
+            throws ServletException, IOException {
+        processRequest(request, response);
+    }
+
+    private void processRequest(HttpServletRequest request, HttpServletResponse response) 
+            throws ServletException, IOException {
+        
+        request.setCharacterEncoding("UTF-8");
+        response.setContentType("text/html; charset=UTF-8");
+        HttpSession session = request.getSession(true);
+
+        String action = request.getParameter("action");
+
+        // 👑 司会者処理
+        if ("createRoom".equals(action)) {
+            String newGameId;
+            synchronized (games) {
+                do {
+                    newGameId = String.format("%04d", (int)(Math.random() * 10000));
+                } while (games.containsKey(newGameId));
+                
+                BingoGame newGame = new BingoGame(newGameId, 1);
+                games.put(newGameId, newGame);
+            }
+            request.setAttribute("game", games.get(newGameId));
+            request.getRequestDispatcher("admin.jsp").forward(request, response);
+            return;
+        }
+
+        if ("draw".equals(action)) {
+            String adminGameId = request.getParameter("gameId");
+            BingoGame adminGame = games.get(adminGameId);
+            if (adminGame != null) {
+                List<Integer> drawn = adminGame.getDrawnNumbers();
+                if (drawn.size() < 75) {
+                    int nextNum;
+                    do {
+                        nextNum = (int)(Math.random() * 75) + 1;
+                    } while (drawn.contains(nextNum));
+                    drawn.add(nextNum);
+                }
+                request.setAttribute("game", adminGame);
+            }
+            request.getRequestDispatcher("admin.jsp").forward(request, response);
+            return;
+        }
+
+        if ("reset".equals(action)) {
+            String adminGameId = request.getParameter("gameId");
+            BingoGame adminGame = games.get(adminGameId);
+            if (adminGame != null) {
+                adminGame.resetGame();
+                request.setAttribute("game", adminGame);
+            }
+            request.getRequestDispatcher("admin.jsp").forward(request, response);
+            return;
+        }
+
+        if ("adminView".equals(action)) {
+            String adminGameId = request.getParameter("gameId");
+            BingoGame adminGame = games.get(adminGameId);
+            if (adminGame != null) {
+                request.setAttribute("game", adminGame);
+            }
+            request.getRequestDispatcher("admin.jsp").forward(request, response);
+            return;
+        }
+
+        // 👤 一般プレイヤー処理
+        String targetGameId = request.getParameter("gameId");
+        if (targetGameId == null || targetGameId.isEmpty()) {
+            targetGameId = (String) session.getAttribute("myCurrentGameId");
+        }
+
+        if (targetGameId != null && targetGameId.length() == 4 && games.containsKey(targetGameId)) {
+            session.setAttribute("myCurrentGameId", targetGameId);
+        } else {
+            if (!"join".equals(action)) {
+                request.setAttribute("error", "⚠️ 部屋の指定が正しくないか、有効期限が切れています。");
+                request.getRequestDispatcher("index.jsp").forward(request, response);
+                return;
+            }
+        }
+
+        BingoGame currentGame = games.get(targetGameId);
+        if (currentGame == null) {
+            session.removeAttribute("card");
+            request.setAttribute("error", "⚠️ お探しのビンゴ部屋が見つかりませんでした。");
+            request.getRequestDispatcher("index.jsp").forward(request, response);
+            return;
+        }
+
+        // ⚡ 司会者がリセット（数字が0個）したら、古い記憶を完全クリア
+        if (currentGame.getDrawnNumbers().isEmpty()) {
+            session.removeAttribute("card");
+            session.removeAttribute("myConfirmedName");
+        }
+
+        String confirmedName = (String) session.getAttribute("myConfirmedName");
+
+        // 🚪 部屋に参加、または名前の記憶がない場合は「自動でプレイヤーX」を割り振る
+        if ("join".equals(action) || confirmedName == null || confirmedName.isEmpty()) {
+            if (confirmedName == null || confirmedName.isEmpty()) {
+                synchronized (currentGame) {
+                    // 全自動で「プレイヤー1」「プレイヤー2」...を生成
+                    String uniqueName = currentGame.generateNextPlayerName();
+                    // 競合を防ぐため空のカードでプレースホルダーを確保
+                    currentGame.setPlayerCard(uniqueName, new ArrayList<>());
+                    confirmedName = uniqueName;
+                }
+                session.setAttribute("myConfirmedName", confirmedName);
+                session.removeAttribute("card");
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        List<List<String>> card = (List<List<String>>) session.getAttribute("card");
+        
+        if (card == null && confirmedName != null && !confirmedName.isEmpty()) {
+            card = currentGame.getPlayerCard(confirmedName);
+            if (card != null && card.isEmpty()) {
+                card = null;
+            }
+            if (card != null) {
+                session.setAttribute("card", card);
+            }
+        }
+        
+        if (card != null && confirmedName != null && !confirmedName.isEmpty()) {
+            currentGame.setPlayerCard(confirmedName, card);
+        }
+        
+        request.setAttribute("game", currentGame);
+        request.setAttribute("confirmedPlayerName", confirmedName);
+        request.setAttribute("gameId", targetGameId);
+
+        request.getRequestDispatcher("index.jsp").forward(request, response);
+    }
 }
