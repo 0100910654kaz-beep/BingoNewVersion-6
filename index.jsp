@@ -1,4 +1,10 @@
-<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%><%@ page import="servlet.BingoGame" %><%@ page import="servlet.PlayerResult" %><%@ page import="java.util.List" %><%@ page import="java.util.ArrayList" %><%@ page import="java.util.Collections" %><%
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="servlet.BingoGame" %>
+<%@ page import="servlet.PlayerResult" %>
+<%@ page import="java.util.List" %>
+<%@ page import="java.util.ArrayList" %>
+<%@ page import="java.util.Collections" %>
+<%
     BingoGame game = (BingoGame) request.getAttribute("game");
     String error = (String) request.getAttribute("error");
     String gameId = (game != null) ? game.getGameId() : "";
@@ -11,6 +17,8 @@
 
     if (game != null && game.getDrawnNumbers().isEmpty()) {
         session.removeAttribute("card");
+        session.removeAttribute("myConfirmedName");
+        playerName = "";
     }
 
     List<List<String>> bingoCard = (List<List<String>>) session.getAttribute("card");
@@ -27,23 +35,18 @@
         }
 
         bingoCard = new ArrayList<>();
-        for (int row = 0; row < 5; row++) {
-            List<String> rowList = new ArrayList<>();
-            for (int col = 0; col < 5; col++) {
-                if (row == 2 && col == 2) {
-                    rowList.add("0");
+        for (int r = 0; r < 5; r++) {
+            List<String> row = new ArrayList<>();
+            for (int c = 0; c < 5; c++) {
+                if (r == 2 && c == 2) {
+                    row.add("0");
                 } else {
-                    rowList.add(String.valueOf(columns.get(col).get(row)));
+                    row.add(String.valueOf(columns.get(c).get(r)));
                 }
             }
-            bingoCard.add(rowList);
+            bingoCard.add(row);
         }
         session.setAttribute("card", bingoCard);
-        game.setPlayerCard(playerName, bingoCard);
-    }
-
-    if (game != null && bingoCard != null && !playerName.isEmpty()) {
-        game.checkPlayerStatus(playerName, bingoCard);
     }
 
     List<Integer> reverseDrawnNumbers = new ArrayList<>();
@@ -53,103 +56,56 @@
         ballCount = reverseDrawnNumbers.size();
         Collections.reverse(reverseDrawnNumbers);
     }
-%><!DOCTYPE html>
+%>
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ビンゴ大会 - プレイヤー画面</title>
     <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 10px; text-align: center; }
-        .container { max-width: 450px; margin: 0 auto; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); box-sizing: border-box; }
-        h1 { font-size: 24px; color: #2b3a42; margin-top: 5px; margin-bottom: 15px; }
-        .login-container { padding: 10px 5px; }
-        .input-group { margin-bottom: 15px; text-align: left; }
-        .input-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
-        .input-group input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-        .btn-join { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
-        .error-msg { color: #e63946; background: #ffe3e3; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-weight: bold; font-size: 14px; }
-        .player-info { margin-bottom: 15px; padding: 12px; background: #eef2f3; border-radius: 8px; box-sizing: border-box; }
-        .bingo-table { width: 100%; margin: 15px 0; border-collapse: separate; border-spacing: 6px; table-layout: fixed; }
-        .bingo-cell { height: 60px; text-align: center; vertical-align: middle; background: #f9f9f9; border: 2px solid #ddd; font-size: 18px; font-weight: bold; border-radius: 8px; color: #444; }
-        .bingo-cell.hit { background: #ff6b6b !important; color: white !important; border-color: #ee5253 !important; text-shadow: 0 1px 3px rgba(0,0,0,0.2); }
-        .bingo-cell.free-cell { background: #ffeaa7; color: #d63031; font-size: 14px; }
-        .status-banner { padding: 10px; border-radius: 8px; font-size: 20px; font-weight: bold; margin-bottom: 15px; }
-        .status-playing { background: #e3f2fd; color: #0d47a1; }
-        .status-reach { background: #fff3e0; color: #e65100; animation: blink 1s infinite alternate; }
-        .status-bingo { background: #e8f5e9; color: #1b5e20; font-size: 24px; animation: bounce 0.5s infinite alternate; }
-        .list-box { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 10px; margin-top: 15px; box-sizing: border-box; }
-        .history-grid { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-height: 100px; overflow-y: auto; padding: 5px; }
-        .history-cell { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #e9ecef; border-radius: 50%; font-size: 14px; font-weight: bold; color: #495057; }
-        @keyframes blink { 0% { opacity: 0.8; } 100% { opacity: 1; } }
-        @keyframes bounce { 0% { transform: translateY(0); } 100% { transform: translateY(-4px); } }
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 10px; text-align: center; margin: 0; }
+        .container { max-width: 450px; margin: 0 auto; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); box-sizing: border-box; }
+        h1 { color: #2c3e50; font-size: 20px; margin-top: 5px; margin-bottom: 15px; }
+        .error-msg { color: #e63946; background: #ffe3e5; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 14px; font-weight: bold; }
+        .form-group { margin-bottom: 15px; text-align: left; }
+        label { font-weight: bold; color: #34495e; font-size: 14px; display: block; margin-bottom: 5px; }
+        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
+        .btn { display: block; width: 100%; background: #2a9d8f; color: white; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; text-decoration: none; box-sizing: border-box; text-align: center; }
+        .btn:hover { background: #21867a; }
+        .status-panel { background: #eef2f3; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; font-weight: bold; color: #2c3e50; }
+        .bingo-table { width: 100%; border-collapse: separate; border-spacing: 6px; margin: 15px 0; table-layout: fixed; }
+        .bingo-cell { background: #fff; border: 2px solid #bdc3c7; border-radius: 8px; font-size: 18px; font-weight: bold; height: 55px; text-align: center; color: #2c3e50; box-shadow: inset 0 -3px 0 #bdc3c7; transition: all 0.2s ease; word-wrap: break-word; }
+        .bingo-cell.hit { background: #e63946; color: white; border-color: #b11e29; box-shadow: inset 0 -3px 0 #91141e; }
+        .bingo-cell.free-cell { background: #f4a261; color: white; border-color: #e76f51; box-shadow: inset 0 -3px 0 #d95d39; font-size: 12px; }
+        .list-box { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 10px; margin-top: 15px; }
+        .history-grid { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-height: 120px; overflow-y: auto; padding: 5px; }
+        .history-cell { background: #e9ecef; color: #495057; font-weight: bold; padding: 6px 10px; border-radius: 20px; font-size: 13px; min-width: 24px; text-align: center; }
+        .history-cell.newest { animation: pulse 1s infinite alternate; font-weight: 900; }
+        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.15); } }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>🎉 ビンゴ大会</h1>
+    <% if (error != null) { %>
+        <div class="error-msg"><%= error %></div>
+    <% } %>
 
-    <% if (game == null || playerName.isEmpty()) { %>
-        <div class="login-container">
-            <h2 style="font-size: 18px; margin-bottom: 15px; color:#555;">ゲームに参加する</h2>
-            
-            <% if (error != null) { %>
-                <div class="error-msg"><%= error %></div>
-            <% } %>
-            
-            <form action="BingoServlet" method="POST">
-                <input type="hidden" name="action" value="join">
-                
-                <div class="input-group">
-                    <label for="gameId">🔑 4桁の部屋番号</label>
-                    <input type="text" id="gameId" name="gameId" placeholder="例: 1234" maxlength="4" value="<%= gameId %>" required>
-                </div>
-                
-                <div class="input-group">
-                    <label for="playerName">👤 あなたのお名前</label>
-                    <input type="text" id="playerName" name="playerName" placeholder="例: 佐藤" required>
-                    
-                    <p style="color: #e63946; font-size: 12px; margin-top: 8px; margin-bottom: 0; line-height: 1.5; font-weight: bold; text-align: left;">
-                        ⚠️ ※同姓同名の方がいる場合は、後ろに番号やニックネーム（例：さとう２）の様に番号をつけて唯一無二の名前に成るようにしてください
-                    </p>
-                </div>
-                
-                <button type="submit" class="btn-join">部屋に入る 🎲</button>
-            </form>
-        </div>
+    <% if (game == null || playerName.isEmpty() || bingoCard == null) { %>
+        <h1>🎉 ビンゴ大会に参戦</h1>
+        <form action="BingoServlet" method="post">
+            <input type="hidden" name="action" value="join">
+            <div class="form-group">
+                <label for="gameId">🔑 部屋ID (4桁)</label>
+                <input type="text" id="gameId" name="gameId" value="<%= gameId %>" placeholder="例: 1234" maxlength="4" required autocomplete="off">
+            </div>
+            <button type="submit" class="btn">ゲームに参加する</button>
+        </form>
     <% } else { %>
-        
-        <div class="player-info">
-            <p style="font-size: 16px; margin: 0; font-weight: bold;">
-                部屋: <span style="color: #007bff;"><%= gameId %></span> ｜ 
-                名前: <span style="color: #2b3a42;"><%= playerName %> さん</span>
-            </p>
-            <p style="font-size: 11px; color: #666; margin: 5px 0 0 0; line-height: 1.3;">
-                ※同じ名前の人が同じ部屋にいた場合、後ろに自動で番号がついている場合があります。
-            </p>
-        </div>
-
-        <%
-            boolean isBingo = false;
-            for (PlayerResult p : game.getBingoPlayers()) {
-                if (p.getPlayerName().equals(playerName)) { isBingo = true; break; }
-            }
-            boolean isReach = false;
-            for (PlayerResult p : game.getReachPlayers()) {
-                if (p.getPlayerName().equals(playerName)) { isReach = true; break; }
-            }
-
-            if (isBingo) {
-        %>
-            <div class="status-banner status-bingo">✨ 完 璧 💥 BINGO !! ✨</div>
-        <% } else if (isReach) { %>
-            <div class="status-banner status-reach">🔥 REACH!! あと <%= game.getWaitNumbers(playerName).size() %> マス 🔥</div>
-        <% } else { %>
-            <div class="status-banner status-playing">🎮 ビンゴを楽しもう！</div>
-        <% } %>
-
-        <div style="font-size: 14px; font-weight: bold; color:#666; margin-bottom: 5px;">
-            現在の抽選球数: <%= ballCount %> / 75 球
+        <h1>🎰 ビンゴカード</h1>
+        <div class="status-panel">
+            部屋: <span style="color:#e63946;"><%= gameId %></span> &nbsp;|&nbsp; 
+            抽出: <%= ballCount %> / 75 球
         </div>
 
         <% if (bingoCard != null) { %>
@@ -169,6 +125,10 @@
                 <% } %>
             </table>
         <% } %>
+
+        <div class="status-panel" style="margin-top: 10px; margin-bottom: 10px; background: #e8f5e9; border: 1px solid #c8e6c9;">
+            あなたの名前: <span style="color:#2a9d8f; font-size: 16px;"><%= playerName %></span>
+        </div>
 
         <div class="list-box">
             <h3 style="margin: 5px 0; font-size:14px;">📊 出た数字一覧（最新が赤）</h3>
